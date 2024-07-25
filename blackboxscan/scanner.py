@@ -1,13 +1,4 @@
-import numpy as np
-import pandas as pd
-import re
-import ast
-import json
-import torch
-import difflib
-from tqdm import tqdm
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
-from huggingface_hub.hf_api import HfFolder
+from transformers import AutoModelForCausalLM
 
 class GenerativeModelOutputs:
     def __init__(self, model: AutoModelForCausalLM, inputs: list|str):
