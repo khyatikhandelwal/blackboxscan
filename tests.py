@@ -1,3 +1,13 @@
 from blackboxscan.scanner import GenerativeModelOutputs
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
-scanner = GenerativeModelOutputs()
+# model_name = "meta-llama/Llama-2-7b-hf"
+model_name = "gpt2"
+tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left")
+model = AutoModelForCausalLM.from_pretrained(model_name)
+tokenizer.pad_token = tokenizer.eos_token
+scanner = GenerativeModelOutputs(
+    model=model, tokenizer=tokenizer, inputs="This is context."
+)
+res = scanner.log_likelihoods(words="I want the likelihood of outputting this.")
+print(res)
