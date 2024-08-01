@@ -7,7 +7,8 @@ tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left")
 model = AutoModelForCausalLM.from_pretrained(model_name)
 tokenizer.pad_token = tokenizer.eos_token
 scanner = GenerativeModelOutputs(
-    model=model, tokenizer=tokenizer, inputs="This is context."
+    model=model, tokenizer=tokenizer, inputs="This is the context."
 )
-res = scanner.log_likelihoods(words="I want the likelihood of outputting this.")
-print(res)
+res = scanner.sentence_log_likelihoods(words="Brahmin")
+print(res.get_tokens())
+print(res.get_total())
