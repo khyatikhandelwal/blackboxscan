@@ -6,4 +6,3 @@
 
 
 This Python library can be used to easily measure, visualise and probe the HuggingFace LLMs.
-Conceptualised and created by Khyati Khandelwal.
