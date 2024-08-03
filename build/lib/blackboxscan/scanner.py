@@ -17,9 +17,6 @@ class ScannedOutputs:
     def get_tokens(self):
         return self.likelihoods_tokenwise
 
-    def get_perplexity(self):
-        return self.get_total / len(self.likelihoods_tokenwise)
-
 
 class GenerativeModelOutputs:
     def __init__(
@@ -34,9 +31,12 @@ class GenerativeModelOutputs:
 
     def sentence_log_likelihoods(self, words: list | str):
         output = ScannedOutputs()
-        # if isinstance(words, list):
-        #     words = words.split(" ")
+        if isinstance(words, str):
+            words = words.split(" ")
         full_input = self.inputs + words
+        i = " ".join(full_input)
+        sentence = str(i)
+        print(sentence)
         input_ids = self.tokenizer.encode(sentence, return_tensors="pt")
         with torch.no_grad():
             outputs = self.model(
@@ -65,6 +65,16 @@ class GenerativeModelOutputs:
             output.add_token_output(token=token, output=nll_token)
             sent += nll_token
         return output
+
+    def word_log_likelihoods(self, word: str):
+        # if self.tokenizer.bos_token:
+        #     bos_tok = self.tokenizer.bos_token
+        # else:
+        #     bos_tok = " "
+        pass
+
+    def perplexity(self):
+        pass
 
     def view_topk(self):
         pass
