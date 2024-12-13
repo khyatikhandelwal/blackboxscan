@@ -6,9 +6,7 @@ model_name = "gpt2"
 tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left")
 model = AutoModelForCausalLM.from_pretrained(model_name)
 tokenizer.pad_token = tokenizer.eos_token
-scanner = GenerativeModelOutputs(
-    model=model, tokenizer=tokenizer, inputs="This is the context."
-)
-res = scanner.sentence_log_likelihoods(words="Brahmin")
+scanner = GenerativeModelOutputs(model=model, tokenizer=tokenizer)
+res = scanner.sentence_log_likelihoods(words="These are the moneys.")
 print(res.get_tokens())
 print(res.get_total())
