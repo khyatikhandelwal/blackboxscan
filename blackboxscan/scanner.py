@@ -3,7 +3,6 @@ from typing import Optional
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
 import argparse
-import matplotlib.pyplot as plt
 from collections import defaultdict
 
 
@@ -100,7 +99,7 @@ class GenerativeModelOutputs:
 
     def plot_topk(self, scores: list[float], tokens: list[str]) -> None:
         """
-        To save a plot of the top k output tokens in the home directory.
+        To display an interactive plot of the top k output tokens using Plotly.
         """
         # Original data
         data = scores
@@ -111,31 +110,30 @@ class GenerativeModelOutputs:
         # Apply the transformation: val - min(list)
         transformed_data = [x - min_value for x in data]
 
-        # Labels for each bar
-        labels = tokens
-
-        # Plot the bar chart with transformed values
-        plt.figure(figsize=(8, 6))
-        bars = plt.bar(labels, transformed_data, edgecolor="black")
-
-        # Rotate the x-axis labels by 90 degrees
-        plt.xticks(rotation=90)
-
-        # Add labels and title
-        plt.title(
-            "Histogram of top k tokens with Transformation: val - min(list)",
-            fontsize=14,
-        )
-        plt.xlabel("Tokens", fontsize=12)
-        plt.ylabel(
-            "Transformed Likelihood Score (curr_val - min(top k vals))", fontsize=12
+        # Create the bar chart using Plotly
+        fig = go.Figure(
+            data=[
+                go.Bar(
+                    x=tokens,
+                    y=transformed_data,
+                    marker_color="skyblue",
+                    text=transformed_data,
+                    textposition="auto",
+                )
+            ]
         )
 
-        # Adjust layout to ensure everything fits
-        plt.tight_layout()
+        # Update layout for better visualization
+        fig.update_layout(
+            title="Histogram of top k tokens with Transformation: val - min(list)",
+            xaxis_title="Tokens",
+            yaxis_title="Transformed Likelihood Score (curr_val - min(top k vals))",
+            xaxis_tickangle=90,
+            template="plotly_white",
+        )
 
-        # Save the plot to the current directory as a PNG file
-        plt.savefig("output.png")
+        # Show the plot inline
+        fig.show()
 
 
 class EmbeddingOutputs:
