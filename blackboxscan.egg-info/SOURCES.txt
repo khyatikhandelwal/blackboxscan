@@ -2,6 +2,7 @@ LICENSE
 README.md
 setup.py
 blackboxscan/__init__.py
+blackboxscan/app.py
 blackboxscan/preprocess.py
 blackboxscan/scanner.py
 blackboxscan.egg-info/PKG-INFO

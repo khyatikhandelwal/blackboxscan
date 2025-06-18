@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: blackboxscan
-Version: 0.1.0
+Version: 1.1.0
 Summary: A library to easily analyse the outputs of HuggingFace LLMs
 Home-page: https://github.com/khyatikhandelwal/blackboxscan
 Author: Khyati Khandelwal
@@ -18,5 +18,5 @@ License-File: LICENSE
 </div>
 
 
+Check https://www.black-box-scan.com/documentation for more documentation, contributions, and participation in the next generation of open-source AI community.
 
-This Python library can be used to easily measure, visualise and probe the HuggingFace LLMs.

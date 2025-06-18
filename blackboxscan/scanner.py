@@ -3,7 +3,14 @@ from typing import Optional
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
 import argparse
+import uuid
 from collections import defaultdict
+from transformers import AutoModel
+from typing import Dict
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import normalize
+import plotly.graph_objects as go
+import os
 
 
 class ScannedOutputs:
@@ -21,7 +28,7 @@ class ScannedOutputs:
         return self.likelihoods_tokenwise
 
     def get_perplexity(self):
-        return self.get_total / len(self.likelihoods_tokenwise)
+        return self.get_total() / len(self.likelihoods_tokenwise)
 
     def get_top_tokens(self, greedy_top_tokens, greedy_score_list):
         return {
@@ -93,24 +100,25 @@ class GenerativeModelOutputs:
             greedy_score.topk(k, dim=1).indices
         )[0].split()
         if get_plot:
-            self.plot_topk(scores=greedy_score_list, tokens=greedy_top_tokens)
-        dict = ScannedOutputs()
-        return dict.get_top_tokens(greedy_top_tokens, greedy_score_list)
+            image_url = self.plot_topk(
+                scores=greedy_score_list, tokens=greedy_top_tokens
+            )
+            return {
+                "topk_tokens": dict.get_top_tokens(
+                    greedy_top_tokens, greedy_score_list
+                ),
+                "plot_url": image_url,
+            }
 
-    def plot_topk(self, scores: list[float], tokens: list[str]) -> None:
+    def plot_topk(self, scores: list[float], tokens: list[str]) -> str:
         """
         To display an interactive plot of the top k output tokens using Plotly.
+        Also saves the plot to a file and returns the public URL.
         """
-        # Original data
         data = scores
-
-        # Calculate the minimum value in the list
         min_value = min(data)
-
-        # Apply the transformation: val - min(list)
         transformed_data = [x - min_value for x in data]
 
-        # Create the bar chart using Plotly
         fig = go.Figure(
             data=[
                 go.Bar(
@@ -123,7 +131,6 @@ class GenerativeModelOutputs:
             ]
         )
 
-        # Update layout for better visualization
         fig.update_layout(
             title="Histogram of top k tokens with Transformation: val - min(list)",
             xaxis_title="Tokens",
@@ -132,8 +139,14 @@ class GenerativeModelOutputs:
             template="plotly_white",
         )
 
-        # Show the plot inline
-        fig.show()
+        # Save to static folder
+        os.makedirs("static", exist_ok=True)
+        filename = f"{uuid.uuid4().hex}.png"
+        filepath = os.path.join("static", filename)
+        fig.write_image(filepath)
+
+        # Return public URL (assumes /static/ is served by Flask)
+        return f"/static/{filename}"
 
 
 class EmbeddingOutputs:
@@ -150,12 +163,12 @@ class EmbeddingOutputs:
         dic = defaultdict()
 
         for word in words_list:
-            tokens = tokenizer.tokenize(word)
-            input_ids = tokenizer.convert_tokens_to_ids(tokens)
+            tokens = self.tokenizer.tokenize(word)
+            input_ids = self.tokenizer.convert_tokens_to_ids(tokens)
             input_ids = torch.tensor(input_ids).unsqueeze(0)
 
             # Forward pass through the model
-            outputs = model(input_ids)
+            outputs = self.model(input_ids)
 
             # Extract the word embedding from the last layer
             last_layer_embedding = outputs.last_hidden_state.squeeze(0)
@@ -169,16 +182,137 @@ class EmbeddingOutputs:
         final_output = final_output.word_embeddings(dic)
         return final_output
 
-    def visualise_embeddings(self, embed_dict: ScannedOutputs):
+    def visualise_embeddings(self, embed_dict: ScannedOutputs, xword: str, yword: str):
+        """
+        This is a function which will take 2 words ('xword' and 'yword'), as well as the embeddings dictionary from above.
+        Then, it will visualise a scatter plot showing position of different words in the embeddings dictionary WRT the
+        two xwords and ywords.
+        This helps us visualise the closeness of different words with the other in the mebedding space.
+        """
         pass
 
 
-class EncoderModelOutputs:
+class Attention:
     """
-    This class will help to easily visualise the attention mechanism of encoder models.
+    Visualize attention mechanisms of encoder models like BERT, or open-sourced decoder models like GPT 2.
+    Supports both vanilla and fine-tuned models.
+    This has been tested with Huggingface Models.
     """
 
-    pass
+    def __init__(self, model_name: str = "gpt2", gen: bool = True):
+        """
+        Initialize the encoder model and tokenizer.
+
+        :param model_name: Hugging Face model identifier
+        """
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.model = AutoModel.from_pretrained(model_name)
+        self.model.eval()  # Set to evaluation mode
+        self.gen = gen  # For generative models (as opposed to encoder bert-like models)
+
+    def attention_scores(self, sentence: str) -> Dict[str, float]:
+        """
+        Extract attention scores for each token in the sentence.
+
+        :param sentence: Input sentence to analyze
+        :return: Dictionary mapping tokens to their attention scores
+        """
+        if self.gen:
+            # Tokenize
+            inputs = self.tokenizer(
+                sentence, return_tensors="pt", add_special_tokens=True
+            )
+
+            # Forward pass
+            with torch.no_grad():
+                outputs = self.model(**inputs, output_attentions=True)
+
+            last_layer_attentions = outputs.attentions[-1].squeeze(
+                0
+            )  # Shape: (num_heads, seq_len, seq_len)
+
+            avg_attentions = torch.mean(
+                last_layer_attentions, dim=0
+            )  # Shape: (seq_len, seq_len)
+
+            # Get tokens and their corresponding attention scores
+            tokens = self.tokenizer.convert_ids_to_tokens(inputs.input_ids[0])
+            tokens = [i.replace("Ġ", "") for i in tokens]
+
+            token_attentions = avg_attentions.mean(dim=0)  # Shape: (seq_len,)
+
+            attention_dict = {
+                token: score.item() for token, score in zip(tokens, token_attentions)
+            }
+
+            return attention_dict
+        else:
+            # Tokenize
+            inputs = self.tokenizer(
+                sentence, return_tensors="pt", add_special_tokens=True
+            )
+
+            # Forward pass
+            with torch.no_grad():
+                outputs = self.model(**inputs, output_attentions=True)
+
+            last_layer_attentions = outputs.attentions[-1].squeeze(0)
+
+            avg_attentions = torch.mean(last_layer_attentions, dim=0)
+
+            # Get tokens and their corresponding attention scores
+            tokens = self.tokenizer.convert_ids_to_tokens(inputs.input_ids[0])
+            # Removing the whitespace token for better viz
+            tokens = [i.replace("Ġ", "") for i in tokens]
+
+            token_attentions = avg_attentions.mean(dim=0)
+
+            attention_dict = {
+                token: score.item() for token, score in zip(tokens, token_attentions)
+            }
+
+            return attention_dict
+
+    def view_attention(self, sentence: str, graph: bool = True):
+        """
+        Visualize attention scores with a simple print representation.
+
+        :param sentence: Input sentence to analyze
+        """
+        attention_scores = self.attention_scores(sentence)
+
+        print("Attention Scores:")
+        for token, score in sorted(
+            attention_scores.items(), key=lambda x: x[1], reverse=True
+        ):
+            print(f"{token}: {score:.4f}")
+
+        if graph:
+            x, y = [], []
+            for token, score in sorted(
+                attention_scores.items(), key=lambda x: x[1], reverse=True
+            ):
+                x.append(token)
+                y.append(round(score, 4))
+            # Plot the attention scores
+            plt.figure(figsize=(10, 5))
+            plt.bar(x, y, color="skyblue")
+            plt.xlabel("Tokens")
+            plt.ylabel("Attention Score")
+            plt.title("Token Attention Scores")
+            plt.xticks(rotation=45, ha="right")
+            plt.grid(axis="y", linestyle="--", alpha=0.7)
+
+            # Save the plot
+            os.makedirs("static", exist_ok=True)
+            filename = f"{uuid.uuid4().hex}.png"
+            filepath = os.path.join("static", filename)
+            plt.savefig(filepath, bbox_inches="tight", dpi=300)
+            plt.show()
+
+            return f"/static/{filename}"
+        else:
+            return attention_scores
 
 
 def main():
@@ -193,12 +327,16 @@ def main():
     parser.add_argument(
         "--mode",
         type=str,
-        choices=["sentence", "word"],
+        choices=["sentence"],
         required=True,
         help="Mode of analysis",
     )
     parser.add_argument(
-        "--words", type=str, nargs="+", help="Words to calculate log likelihood for"
+        "--words",
+        type=str,
+        nargs="+",
+        required=False,
+        help="Words to calculate log likelihood for (required for 'sentence' mode)",
     )
 
     args = parser.parse_args()
@@ -207,27 +345,27 @@ def main():
     model = AutoModelForCausalLM.from_pretrained(args.model)
     tokenizer = AutoTokenizer.from_pretrained(args.model)
 
-    # Instantiate the GenerativeModelOutputs class
-    generative_outputs = GenerativeModelOutputs(model, tokenizer, args.input)
+    # Instantiate GenerativeModelOutputs
+    generative_outputs = GenerativeModelOutputs(model, tokenizer)
 
-    if args.mode == "sentence" and args.words:
+    if args.mode == "sentence":
+        if not args.words:
+            print("Error: --words argument is required in 'sentence' mode.")
+            sys.exit(1)
+
         output = generative_outputs.sentence_log_likelihoods(args.words)
-        print(f"Total Sentence Log Likelihood: {output.get_total()}")
-        print(f"Token-wise Likelihoods: {output.get_tokens()}")
-    elif args.mode == "word":
-        # Implement word-level log likelihood analysis if needed
-        pass
+
+        print("\n===== Sentence Log Likelihood Analysis =====")
+        print(f"Total Log Likelihood: {output.get_total():.4f}")
+        print(f"Perplexity: {output.get_perplexity():.4f}")
+        print("Token-wise Likelihoods:")
+        for token, score in output.get_tokens():
+            print(f"  {token}: {score:.4f}")
+
     else:
         print("Invalid mode or missing required arguments for the selected mode.")
         sys.exit(1)
 
 
 if __name__ == "__main__":
-    # main()
-    model_name = "gpt2"
-    tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left")
-    model = AutoModelForCausalLM.from_pretrained(model_name)
-    tokenizer.pad_token = tokenizer.eos_token
-    s = GenerativeModelOutputs(model=model, tokenizer=tokenizer)
-    d = s.view_topk(input_sentence="Hello! I am an", k=10, get_plot=True)
-    print(d)
+    main()
