@@ -4,5 +4,5 @@
 </div>
 
 
-Check https://www.black-box-scan.com/documentation for more documentation, contributions, and participation in the next generation of open-source AI community.
+Check https://www.blackboxscan.com for more documentation, contributions, and participation in the next generation of open-source AI community.
 
