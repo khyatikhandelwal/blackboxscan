@@ -1,0 +1,4 @@
+sdk: static
+static:
+  path: static
+  index: index.html

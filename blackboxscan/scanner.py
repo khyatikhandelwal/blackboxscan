@@ -82,7 +82,7 @@ class GenerativeModelOutputs:
 
     def view_topk(
         self, input_sentence: str, k: int, get_plot: Optional[bool] = False
-    ) -> ScannedOutputs:
+    ) -> dict:
         """
         https://medium.com/@meoungjun.k/analyzing-token-scores-in-text-generation-with-hugging-face-transformers-c2b3d5b2bece
         """
@@ -99,16 +99,21 @@ class GenerativeModelOutputs:
         greedy_top_tokens = self.tokenizer.batch_decode(
             greedy_score.topk(k, dim=1).indices
         )[0].split()
+
+        temp_output = ScannedOutputs()
+
         if get_plot:
             image_url = self.plot_topk(
                 scores=greedy_score_list, tokens=greedy_top_tokens
             )
             return {
-                "topk_tokens": dict.get_top_tokens(
+                "topk_tokens": temp_output.get_top_tokens(
                     greedy_top_tokens, greedy_score_list
                 ),
                 "plot_url": image_url,
             }
+        else:
+            return temp_output.get_top_tokens(greedy_top_tokens, greedy_score_list)
 
     def plot_topk(self, scores: list[float], tokens: list[str]) -> str:
         """
@@ -308,7 +313,7 @@ class Attention:
             filename = f"{uuid.uuid4().hex}.png"
             filepath = os.path.join("static", filename)
             plt.savefig(filepath, bbox_inches="tight", dpi=300)
-            plt.show()
+            plt.close()  # Add this line to close the figure and free memory
 
             return f"/static/{filename}"
         else:
